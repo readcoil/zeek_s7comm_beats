@@ -1,0 +1,69 @@
+type: log
+paths:
+{{ range $i, $path := .paths }}
+ - {{$path}}
+{{ end }}
+exclude_files: [".gz$"]
+tags: {{.tags | tojson}}
+publisher_pipeline.disable_host: {{ inList .tags "forwarded" }}
+
+json.keys_under_root: false
+
+fields_under_root: true
+fields:
+  network.transport: tcp
+  network.protocol: s7comm
+
+processors:
+  - rename:
+      fields:
+        - from: "json"
+          to: "zeek.s7comm"
+
+        - from: "zeek.s7comm.id.orig_h"
+          to: "source.address"
+
+        - from: "zeek.s7comm.id.orig_p"
+          to: "source.port"
+
+        - from: "zeek.s7comm.id.resp_h"
+          to: "destination.address"
+
+        - from: "zeek.s7comm.id.resp_p"
+          to: "destination.port"
+
+        - from: "zeek.s7comm.uid"
+          to: "zeek.session_id"
+
+        - from: "zeek.s7comm.rosctr"
+          to: "zeek.rosctr"
+
+        - from: "zeek.s7comm.parameter"
+          to: "zeek.parameter"
+
+        - from: "zeek.s7comm.data_info"
+          to: "zeek.data_info"
+
+      ignore_missing: true
+      fail_on_error: false
+  - convert:
+      fields:
+        - {from: "zeek.session_id", to: "event.id"}
+        - {from: "source.address", to: "source.ip", type: "ip"}
+        - {from: "destination.address", to: "destination.ip", type: "ip"}
+  - add_fields:
+      target: event
+      fields:
+        kind: event
+        category:
+          - network
+        type:
+          - connection
+          - protocol
+{{ if .community_id }}
+  - community_id:
+{{ end }}
+  - add_fields:
+      target: ''
+      fields:
+        ecs.version: 1.5.0
